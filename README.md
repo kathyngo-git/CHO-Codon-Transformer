@@ -12,15 +12,28 @@ Local use of [CodonTransformer](https://github.com/Adibvafa/CodonTransformer) (F
 - Against one vendor's CHO-specific optimizer, CodonTransformer (Mus) agrees on about 62 to 68% of codons and is less GC-rich at the third position (GC3 about 78% against about 85%). Check CAI and tAI against a CHO reference before ordering.
 - The model has no restriction-site avoidance. Screen the output for the enzymes in your cloning design and fix any hits by hand.
 
-## Setup (once, CPU is sufficient)
+## Running locally (no Colab, no GPU needed)
 
-```
-python -m venv ctv            # keep the path short on Windows (long paths break pip)
-ctv\Scripts\activate
-pip install CodonTransformer  # pulls torch, transformers; downgrades numpy to 1.26.x
-```
+Everything runs on your own machine. Sequences are never uploaded; the only network use is the one-time model download.
 
-First run downloads the model (about 0.5 GB) from Hugging Face. Use a dedicated environment because the numpy pin conflicts with some other packages.
+Tested on Windows 11, Python 3.12, CPU only (PyTorch 2.12, numpy 1.26.4).
+
+**1. Create an environment (once).** Put it at a short path, because Windows long-path limits make `pip` fail in deeply nested folders:
+```
+python -m venv %TEMP%\ctv
+%TEMP%\ctv\Scripts\python.exe -m pip install CodonTransformer
+```
+The package pulls in `torch` and `transformers` and pins numpy to 1.26.x, which can break other packages that need numpy 2 (for example `zarr`). A dedicated environment avoids that. Add `--system-site-packages` to the `venv` command to reuse an existing PyTorch install instead of downloading it again.
+
+**2. First run downloads the model (once).** About 0.5 GB from Hugging Face, cached under `%USERPROFILE%\.cache\huggingface`. After that it works offline; set `HF_HUB_OFFLINE=1` to force this.
+
+**3. Run it.**
+```
+%TEMP%\ctv\Scripts\python.exe predict.py input.csv output.csv --organism "Mus musculus"
+```
+In PowerShell use `& "$env:TEMP\ctv\Scripts\python.exe" predict.py ...`. If the console shows encoding errors, set `PYTHONIOENCODING=utf-8` first. Harmless `GenerationMixin` warnings from transformers appear on every run.
+
+Speed on CPU (measured, once the model is cached): import and model load about 6 s, then 0.2 s for a 19 aa peptide and 0.5 s for a 473 aa chain. A GPU is used automatically if PyTorch can see one.
 
 ## Optimizing new sequences
 
@@ -37,7 +50,7 @@ Rules that matter:
 - **Optimize the whole chain at once.** Predictions depend on context: the same signal peptide gets different codons when run alone and when run as part of a full heavy chain. Cut the signal peptide out of the full-chain result instead of optimizing it separately.
 - **Keep the settings fixed** (deterministic, `original_full`, same organism) so results are reproducible. Record them with the output.
 - `deterministic=False` with a `temperature` (0.2 conservative, 0.8 diverse) and `num_sequences` gives several variants; the notebook shows this. Use it only when you want alternatives to screen.
-- Long chains run in under a minute on CPU each; 512 aa is the practical upper bound tested.
+- 512 aa is the longest input tested.
 
 ## After prediction
 
